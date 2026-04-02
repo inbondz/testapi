@@ -77,6 +77,7 @@
 
         .footer-gap { height: 20px; width: 100%; background: var(--bg); }
 
+        /* CUSTOM MODALS */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); display: none; justify-content: center; align-items: center; z-index: 100; }
         .modal-overlay.active { display: flex; }
         .modal { background: var(--bg); padding: 32px; border-radius: 16px; width: 90%; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); text-align: center; border: 1px solid var(--border); }
@@ -190,6 +191,14 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="sysAlertModal">
+        <div class="modal">
+            <h3 style="color: var(--brand);">System Notice</h3>
+            <p id="sysAlertText" style="font-weight: 500;"></p>
+            <button class="modal-btn confirm" style="width: 100%;" onclick="hideModals()">Acknowledge</button>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="nukedAlertModal">
         <div class="modal">
             <h3>Room Annihilated</h3>
@@ -229,6 +238,13 @@
 
         const showModal = (id) => { document.getElementById(id).classList.add('active'); };
         const hideModals = () => { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active')); };
+        
+        // Custom Alert Function to replace JS alert()
+        const showSysAlert = (msg) => {
+            document.getElementById('sysAlertText').innerText = msg;
+            showModal('sysAlertModal');
+        };
+
         const generateID = () => { let id = ''; for(let i=0; i<6; i++) id += ALPHABET.charAt(Math.floor(Math.random() * ALPHABET.length)); return id; };
         
         function closeChatMobile() {
@@ -291,7 +307,7 @@
         const updateStatusIndicator = (roomId, isOnline, isSealed = false) => {
             if(currentViewId === roomId) {
                 const dot = document.getElementById('currentStatus');
-                dot.className = 'status-dot'; // reset
+                dot.className = 'status-dot'; 
                 if(isOnline) dot.classList.add('online');
                 if(isSealed) dot.classList.add('sealed');
             }
@@ -376,7 +392,9 @@
             const roomId = generateID();
             hideModals(); saveRoomToMasterList(roomId, name, 'creator');
             bootBackgroundListener(roomId); openChatView(roomId, name, 'creator');
-            renderSysMsg(`Coordinates generated: ${roomId}`);
+            
+            // Show custom alert instead of basic popups for radar
+            showSysAlert(`Coordinates generated: ${roomId}\n\nSend these to the receiver.`);
         }
 
         function executeJoin() {
@@ -390,7 +408,7 @@
                 wireConnection(conn, roomId); openChatView(roomId, 'Receiver Window', 'receiver');
             });
             tempReceiverPeer.on('error', () => { 
-                alert("Coordinates invalid, room destroyed, or tunnel permanently sealed."); 
+                showSysAlert("Coordinates invalid, room destroyed, or tunnel permanently sealed."); 
             });
         }
 
@@ -407,7 +425,9 @@
             document.getElementById('bottomSafeZone').style.display = 'flex';
             
             document.getElementById('currentRoomName').innerText = roomName;
-            document.getElementById('btnNuke').style.display = (role === 'creator') ? 'inline-block' : 'none';
+            
+            // NUKE BUTTON LOGIC: Always show to Creator, mathematically locked.
+            document.getElementById('nukeContainer').style.display = (role === 'creator') ? 'block' : 'none';
             
             const isOnline = !!(activeConns[roomId] && activeConns[roomId].open);
             const isSealed = (role === 'creator' && !activePeers[roomId]); 
@@ -420,7 +440,8 @@
             const input = document.getElementById('chatInput'); const text = input.value.trim();
             if(!text || !currentViewId) return;
             const conn = activeConns[currentViewId];
-            if(!conn || !conn.open) { alert("Tunnel inactive or sealed."); return; }
+            if(!conn || !conn.open) { showSysAlert("Tunnel inactive or permanently sealed."); return; }
+            
             saveMsg(currentViewId, 'self', text, false);
             renderMsgObj({ type: 'self', payload: text, isFile: false });
             conn.send({ cmd: 'MSG', data: text }); input.value = '';
@@ -428,7 +449,8 @@
 
         function sendFile(inputElement) {
             const file = inputElement.files[0]; if(!file || !currentViewId) return;
-            const conn = activeConns[currentViewId]; if(!conn || !conn.open) { alert("Tunnel inactive or sealed."); return; }
+            const conn = activeConns[currentViewId]; if(!conn || !conn.open) { showSysAlert("Tunnel inactive or permanently sealed."); return; }
+            
             const fileId = generateID(); renderSysMsg(`Streaming file: ${file.name}...`);
             let offset = 0; const reader = new FileReader();
             reader.onload = (e) => {
